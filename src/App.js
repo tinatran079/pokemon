@@ -2,10 +2,11 @@ import React, { useState, useEffect } from "react";
 import PokemonList from "./PokemonList";
 import Pagination from "./Pagination";
 import axios from "axios";
+import "./styles.css";
 
 function App() {
   // list of pokemon
-  const [pokemon, setPokemon] = useState([]);
+  const [pokemonData, setPokemonData] = useState([]);
 
   // track current page
   const [currentPageUrl, setCurrentPageUrl] = useState(
@@ -14,25 +15,31 @@ function App() {
 
   const [nextPageUrl, setNextPageUrl] = useState();
   const [prevPageUrl, setPrevPageUrl] = useState();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    let cancel;
-    axios
-      .get(currentPageUrl, {
-        cancelToken: new axios.CancelToken((c) => (cancel = c)),
-      })
-      .then((res) => {
-        setLoading(false);
-        setNextPageUrl(res.data.next);
-        setPrevPageUrl(res.data.previous);
-        setPokemon(res.data.results.map((p) => p.name));
-      });
+    const fetchPokemon = async () => {
+      try {
+        const response = await axios.get(currentPageUrl);
+        const pokemonList = response.data.results;
 
-    // gets called everytime useEffect gets called again
-    // cancel prev request when making new req
-    return () => cancel();
+        const pokemonDataPromises = pokemonList.map(async (pokemon) => {
+          const pokemonResponse = await axios.get(pokemon.url); // Fix variable name
+          return {
+            ...pokemonResponse.data,
+            url: pokemon.url,
+          };
+        });
+
+        const pokemonDetails = await Promise.all(pokemonDataPromises);
+
+        setPokemonData(pokemonDetails);
+        setNextPageUrl(response.data.next);
+        setPrevPageUrl(response.data.previous);
+      } catch (error) {
+        console.error("Error fetching pokemon", error);
+      }
+    };
+    fetchPokemon();
   }, [currentPageUrl]);
 
   function gotoNextPage() {
@@ -43,11 +50,9 @@ function App() {
     setCurrentPageUrl(prevPageUrl);
   }
 
-  if (loading) return "Loading...";
-
   return (
     <>
-      <PokemonList pokemon={pokemon} />
+      <PokemonList pokemon={pokemonData} />
       <Pagination
         gotoNextPage={nextPageUrl ? gotoNextPage : null}
         gotoPrevPage={prevPageUrl ? gotoPrevPage : null}
